@@ -1,1242 +1,269 @@
-import {
-  API_BASE,
-} from "../config/api";
-
-import {
-  authFetch,
-} from "./authService";
-
-/* =========================================================
-   ESTADOS
-========================================================= */
-
-export type InvoiceStatusCode =
-  | "PENDIENTE"
-  | "APROBADA"
-  | "RECHAZADA"
-  | "REMITIDA"
-  | "PROCESADA";
-
+import { authFetch } from "./authService";
+import { apiUrl, requestJson, requireData, jsonBody, positiveId, SgafApiError, joinWarnings } from "../utils/sgafApi";
+import { normalizeClasificacion, prepareEmails } from "../utils/sgafUi";
+import type { ResultadoClasificacion } from "../utils/sgafUi";
+export type { ResultadoClasificacion } from "../utils/sgafUi";
+export { SgafApiError } from "../utils/sgafApi";
+export type InvoiceStatusCode = "PENDIENTE" | "APROBADA" | "RECHAZADA" | "REMITIDA" | "PROCESADA";
 /* =========================================================
    FACTURA
 ========================================================= */
-
 export interface Invoice {
-  id:
-    number;
-
-  idProveedor:
-    number | null;
-
-  idAreaOrigen:
-    number;
-
-  idAreaActual:
-    number;
-
-  idAreaProveedor?:
-    number | null;
-
-  estadoCodigo:
-    InvoiceStatusCode;
-
-  estado:
-    string;
-
-  tipoDocumento:
-    "FACTURA" |
-    "NOTA_CREDITO" |
-    null;
-
-  numeroFactura:
-    string | null;
-
-  cufe?:
-    string | null;
-
-  asunto:
-    string | null;
-
-  proveedor:
-    string;
-
-  nit:
-    string | null;
-
-  correo:
-    string | null;
-
-  fechaRecepcion:
-    string | null;
-
-  fechaEmision?:
-    string | null;
-
-  fechaVencimiento?:
-    string | null;
-
-  tieneAdjuntos:
-    boolean;
-
-  webLink:
-    string | null;
-
-  bodyPreview?:
-    string | null;
-
-  outlookMessageId?:
-    string | null;
-
-  internetMessageId?:
-    string | null;
-
-  areaOrigen:
-    string;
-
-  areaActual:
-    string;
-
-  areaProveedor?:
-    string | null;
-
-  remitidaDesde?:
-    string | null;
-
-  fechaRemision?:
-    string | null;
-
-  rechazadaPor?:
-    string | null;
-
-  observacionRechazo?:
-    string | null;
-
-  fechaRechazo?:
-    string | null;
-
-  subtotal?:
-    string |
-    number |
-    null;
-
-  impuestos?:
-    string |
-    number |
-    null;
-
-  valorTotal:
-    string |
-    number |
-    null;
-
-  moneda:
-    string | null;
-
-  origen?:
-    string;
+  id: number;
+  idProveedor: number | null;
+  idAreaOrigen: number;
+  idAreaActual: number;
+  idAreaProveedor?: number | null;
+  estadoCodigo: InvoiceStatusCode;
+  estado: string;
+  tipoDocumento: "FACTURA" | "NOTA_CREDITO" | null;
+  numeroFactura: string | null;
+  cufe?: string | null;
+  asunto: string | null;
+  proveedor: string;
+  nit: string | null;
+  correo: string | null;
+  fechaRecepcion: string | null;
+  fechaEmision?: string | null;
+  fechaVencimiento?: string | null;
+  tieneAdjuntos: boolean;
+  webLink: string | null;
+  bodyPreview?: string | null;
+  outlookMessageId?: string | null;
+  internetMessageId?: string | null;
+  areaOrigen: string;
+  areaActual: string;
+  areaProveedor?: string | null;
+  remitidaDesde?: string | null;
+  fechaRemision?: string | null;
+  rechazadaPor?: string | null;
+  observacionRechazo?: string | null;
+  fechaRechazo?: string | null;
+  subtotal?: string | number | null;
+  impuestos?: string | number | null;
+  valorTotal: string | number | null;
+  moneda: string | null;
+  origen?: string;
+  activo?: boolean;
+  asignacionManualBloqueada?: boolean;
 }
-
 /* =========================================================
    CATALOGOS
 ========================================================= */
-
 export interface AreaFactura {
-  id:
-    number;
-
-  nombre:
-    string;
+  id: number;
+  nombre: string;
 }
-
 export interface ProveedorFactura {
-  id:
-    number;
-
-  nombre:
-    string;
-
-  nit:
-    string | null;
-
-  idArea:
-    number;
-
-  area:
-    string;
-
-  correos:
-    string[];
+  id: number;
+  nombre: string;
+  nit: string | null;
+  idArea: number;
+  area: string;
+  correos: string[];
 }
-
 /* =========================================================
    OUTLOOK
 ========================================================= */
-
 export interface OutlookAttachment {
-  id:
-    string;
-
-  name:
-    string;
-
-  contentType:
-    string;
-
-  size:
-    number;
-
-  isInline:
-    boolean;
-
-  contentId:
-    string | null;
-
-  type:
-    string;
+  id: string;
+  name: string;
+  contentType: string;
+  size: number;
+  isInline: boolean;
+  contentId: string | null;
+  type: string;
 }
-
 export interface OutlookDocumentLink {
-  url:
-    string;
-
-  label:
-    string;
+  url: string;
+  label: string;
 }
-
 export interface OutlookMessageDetail {
-  id:
-    string;
-
-  subject:
-    string;
-
-  fromName:
-    string;
-
-  fromEmail:
-    string;
-
-  to:
-    string[];
-
-  cc:
-    string[];
-
-  receivedDateTime:
-    string | null;
-
-  sentDateTime:
-    string | null;
-
-  bodyHtml:
-    string;
-
-  bodyText:
-    string;
-
-  bodyPreview:
-    string;
-
-  hasAttachments:
-    boolean;
-
-  attachments:
-    OutlookAttachment[];
-
-  documentLinks:
-    OutlookDocumentLink[];
-
-  webLink:
-    string | null;
-
-  internetMessageId:
-    string | null;
+  id: string;
+  subject: string;
+  fromName: string;
+  fromEmail: string;
+  to: string[];
+  cc: string[];
+  receivedDateTime: string | null;
+  sentDateTime: string | null;
+  bodyHtml: string;
+  bodyText: string;
+  bodyPreview: string;
+  hasAttachments: boolean;
+  attachments: OutlookAttachment[];
+  documentLinks: OutlookDocumentLink[];
+  webLink: string | null;
+  internetMessageId: string | null;
 }
-
 /* =========================================================
    PROVEEDOR DESDE RECEPCION
 ========================================================= */
-
 export interface NuevoProveedorFacturaInput {
-  nombre:
-    string;
-
-  nit:
-    string | null;
-
-  idArea:
-    number;
-
-  correos:
-    string[];
+  nombre: string;
+  nit: string | null;
+  idArea: number;
+  correos: string[];
 }
-
 export interface AsignarProveedorResult {
-  idProveedor:
-    number;
-
-  proveedor:
-    string;
-
-  nit:
-    string | null;
-
-  idArea:
-    number;
-
-  area:
-    string;
-
-  creado:
-    boolean;
+  idProveedor: number;
+  proveedor: string;
+  nit: string | null;
+  idArea: number;
+  area: string;
+  creado: boolean;
+  facturasActualizadas?: number;
+  facturasTransferidas?: number;
+  correoOrigenRegistrado?: boolean;
+  clasificacion: ResultadoClasificacion | null;
+  warning?: string | null;
 }
-
 /* =========================================================
    HISTORIAL
 ========================================================= */
-
 export interface FacturaEvento {
-  id:
-    number;
-
-  accion:
-    string;
-
-  areaActor:
-    string | null;
-
-  areaOrigen:
-    string | null;
-
-  areaDestino:
-    string | null;
-
-  estadoAnteriorCodigo:
-    string | null;
-
-  estadoAnterior:
-    string | null;
-
-  estadoNuevoCodigo:
-    string | null;
-
-  estadoNuevo:
-    string | null;
-
-  observacion:
-    string | null;
-
-  datos:
-    Record<
-      string,
-      unknown
-    >;
-
-  fechaEvento:
-    string;
+  id: number;
+  accion: string;
+  areaActor: string | null;
+  areaOrigen: string | null;
+  areaDestino: string | null;
+  estadoAnteriorCodigo: string | null;
+  estadoAnterior: string | null;
+  estadoNuevoCodigo: string | null;
+  estadoNuevo: string | null;
+  observacion: string | null;
+  datos: Record<string, unknown>;
+  fechaEvento: string;
 }
 
-/* =========================================================
-   RESPUESTA API
-========================================================= */
-
-interface ApiResponse<T> {
-  success:
-    boolean;
-
-  message?:
-    string;
-
-  data?:
-    T;
+export interface ReadOptions { signal?: AbortSignal; }
+const asBoolean = (value: unknown): boolean => value === true || value === "true" || value === "t" || value === 1;
+const optionalId = (value: number | null | undefined): number | null => value == null ? null : positiveId(Number(value));
+const normalizeInvoice = (invoice: Invoice): Invoice => ({
+  ...invoice, id: positiveId(Number(invoice.id)), idProveedor: optionalId(invoice.idProveedor),
+  idAreaOrigen: positiveId(Number(invoice.idAreaOrigen)), idAreaActual: positiveId(Number(invoice.idAreaActual)),
+  idAreaProveedor: optionalId(invoice.idAreaProveedor), tieneAdjuntos: asBoolean(invoice.tieneAdjuntos),
+  ...(invoice.activo === undefined ? {} : { activo: asBoolean(invoice.activo) }),
+});
+async function readList(path: string, options: ReadOptions): Promise<Invoice[]> {
+  const data = requireData(await requestJson<Invoice[]>(path, { method: "GET", signal: options.signal }));
+  if (!Array.isArray(data)) throw new Error("El servidor no devolvió una lista de registros.");
+  return data.map(normalizeInvoice);
 }
-
-const readJson =
-  async <T>(
-    response:
-      Response,
-  ): Promise<
-    ApiResponse<T>
-  > => {
-    try {
-      return (
-        await response.json()
-      ) as
-        ApiResponse<T>;
-    } catch {
-      throw new Error(
-        "El servidor devolvió una respuesta inválida.",
-      );
-    }
-  };
-
-const readResponse =
-  async <T>(
-    response:
-      Response,
-  ): Promise<T> => {
-    const result =
-      await readJson<T>(
-        response,
-      );
-
-    if (
-      !response.ok ||
-      !result.success ||
-      result.data ===
-        undefined
-    ) {
-      throw new Error(
-        result.message ??
-          "No fue posible completar la operación.",
-      );
-    }
-
-    return result.data;
-  };
-
-const ensureSuccess =
-  async (
-    response:
-      Response,
-  ): Promise<void> => {
-    const result =
-      await readJson<unknown>(
-        response,
-      );
-
-    if (
-      !response.ok ||
-      !result.success
-    ) {
-      throw new Error(
-        result.message ??
-          "No fue posible completar la operación.",
-      );
-    }
-  };
-
-/* =========================================================
-   NORMALIZAR
-========================================================= */
-
-const normalizeInvoice = (
-  invoice:
-    Invoice,
-): Invoice => {
+export const getFacturas = (options: ReadOptions = {}): Promise<Invoice[]> => readList("/facturas", options);
+export const getFacturasRemitidas = (options: ReadOptions = {}): Promise<Invoice[]> => readList("/facturas/panel/remitidas", options);
+export const getFacturasRechazadas = (options: ReadOptions = {}): Promise<Invoice[]> => readList("/facturas/panel/rechazadas", options);
+export async function getFacturaDetalle(id: number, options: ReadOptions = {}): Promise<Invoice> {
+  return normalizeInvoice(requireData(await requestJson<Invoice>(`/facturas/${positiveId(id)}`, { method: "GET", signal: options.signal })));
+}
+export async function getFacturaCorreoOutlook(id: number, options: ReadOptions = {}): Promise<OutlookMessageDetail> {
+  const data = requireData(await requestJson<OutlookMessageDetail>(`/facturas/${positiveId(id)}/correo-outlook`, { method: "GET", signal: options.signal }));
   return {
-    ...invoice,
-
-    id:
-      Number(
-        invoice.id,
-      ),
-
-    idProveedor:
-      invoice.idProveedor ===
-        null ||
-      invoice.idProveedor ===
-        undefined
-        ? null
-        : Number(
-            invoice
-              .idProveedor,
-          ),
-
-    idAreaOrigen:
-      Number(
-        invoice
-          .idAreaOrigen,
-      ),
-
-    idAreaActual:
-      Number(
-        invoice
-          .idAreaActual,
-      ),
-
-    idAreaProveedor:
-      invoice.idAreaProveedor ===
-        null ||
-      invoice.idAreaProveedor ===
-        undefined
-        ? null
-        : Number(
-            invoice
-              .idAreaProveedor,
-          ),
-
-    tieneAdjuntos:
-      Boolean(
-        invoice
-          .tieneAdjuntos,
-      ),
+    ...data, to: Array.isArray(data.to) ? data.to : [], cc: Array.isArray(data.cc) ? data.cc : [],
+    attachments: Array.isArray(data.attachments) ? data.attachments : [], documentLinks: Array.isArray(data.documentLinks) ? data.documentLinks : []
   };
-};
-
-/* =========================================================
-   LISTADOS
-========================================================= */
-
-export const getFacturas =
-  async (): Promise<
-    Invoice[]
-  > => {
-    const response =
-      await authFetch(
-        `${API_BASE}/facturas`,
-        {
-          method:
-            "GET",
-
-          cache:
-            "no-store",
-        },
-      );
-
-    const data =
-      await readResponse<
-        Invoice[]
-      >(
-        response,
-      );
-
-    return data.map(
-      normalizeInvoice,
-    );
+}
+export async function getAreasFactura(options: ReadOptions = {}): Promise<AreaFactura[]> {
+  const data = requireData(await requestJson<AreaFactura[]>("/facturas/catalogos/areas", { method: "GET", signal: options.signal }));
+  if (!Array.isArray(data)) throw new Error("Catálogo de áreas no válido.");
+  return data.map(item => ({ ...item, id: positiveId(Number(item.id)) }));
+}
+export async function getProveedoresFactura(options: ReadOptions = {}): Promise<ProveedorFactura[]> {
+  const data = requireData(await requestJson<ProveedorFactura[]>("/facturas/catalogos/proveedores", { method: "GET", signal: options.signal }));
+  if (!Array.isArray(data)) throw new Error("Catálogo de proveedores no válido.");
+  return data.map(item => ({
+    ...item, id: positiveId(Number(item.id)), idArea: positiveId(Number(item.idArea)),
+    correos: Array.isArray(item.correos) ? item.correos.filter((email): email is string => typeof email === "string") : []
+  }));
+}
+async function simpleAction(id: number, action: string, observacion?: string | null): Promise<void> {
+  await requestJson(`/facturas/${positiveId(id)}/${action}`, jsonBody({ observacion: observacion?.trim() || null }));
+}
+export const aprobarFactura = (id: number, observacion?: string | null): Promise<void> => simpleAction(id, "aprobar", observacion);
+/** Rechazo unico para RECEPCION y las demas areas. Nunca envia DELETE. */
+export const rechazarFactura = (id: number, observacion?: string | null): Promise<void> => simpleAction(id, "rechazar", observacion);
+export const procesarFactura = (id: number, observacion?: string | null): Promise<void> => simpleAction(id, "procesar", observacion);
+export const reactivarFactura = (id: number, observacion?: string | null): Promise<void> => simpleAction(id, "reactivar", observacion);
+/** Accion independiente: no es un alias de remitirFactura. */
+export const remitirFacturaContabilidad = (id: number, observacion?: string | null): Promise<void> => simpleAction(id, "remitir-contabilidad", observacion);
+export async function remitirFactura(id: number, idAreaDestino: number, observacion?: string | null): Promise<void> {
+  await requestJson(`/facturas/${positiveId(id)}/remitir`, jsonBody({ idAreaDestino: positiveId(idAreaDestino, "Área"), observacion: observacion?.trim() || null }));
+}
+async function assignProvider(id: number, body: unknown): Promise<AsignarProveedorResult> {
+  const envelope = await requestJson<AsignarProveedorResult>(`/facturas/${positiveId(id)}/asignar-proveedor`, jsonBody(body));
+  const data = requireData(envelope);
+  return {
+    ...data, idProveedor: positiveId(Number(data.idProveedor)), idArea: positiveId(Number(data.idArea)),
+    clasificacion: normalizeClasificacion(data.clasificacion), warning: joinWarnings(envelope.warning, data.warning)
   };
-
-export const getFacturasRemitidas =
-  async (): Promise<
-    Invoice[]
-  > => {
-    const response =
-      await authFetch(
-        `${API_BASE}/facturas/panel/remitidas`,
-        {
-          method:
-            "GET",
-
-          cache:
-            "no-store",
-        },
-      );
-
-    const data =
-      await readResponse<
-        Invoice[]
-      >(
-        response,
-      );
-
-    return data.map(
-      normalizeInvoice,
-    );
-  };
-
-export const getFacturasRechazadas =
-  async (): Promise<
-    Invoice[]
-  > => {
-    const response =
-      await authFetch(
-        `${API_BASE}/facturas/panel/rechazadas`,
-        {
-          method:
-            "GET",
-
-          cache:
-            "no-store",
-        },
-      );
-
-    const data =
-      await readResponse<
-        Invoice[]
-      >(
-        response,
-      );
-
-    return data.map(
-      normalizeInvoice,
-    );
-  };
-
-
-/* =========================================================
-   DETALLE
-========================================================= */
-
-export const getFacturaDetalle =
-  async (
-    id:
-      number,
-  ): Promise<
-    Invoice
-  > => {
-    const response =
-      await authFetch(
-        `${API_BASE}/facturas/${id}`,
-        {
-          method:
-            "GET",
-
-          cache:
-            "no-store",
-        },
-      );
-
-    return normalizeInvoice(
-      await readResponse<
-        Invoice
-      >(
-        response,
-      ),
-    );
-  };
-
-export const getFacturaCorreoOutlook =
-  async (
-    id:
-      number,
-  ): Promise<
-    OutlookMessageDetail
-  > => {
-    const response =
-      await authFetch(
-        `${API_BASE}/facturas/${id}/correo-outlook`,
-        {
-          method:
-            "GET",
-
-          cache:
-            "no-store",
-        },
-      );
-
-    return readResponse<
-      OutlookMessageDetail
-    >(
-      response,
-    );
-  };
-
-/* =========================================================
-   CATALOGOS
-========================================================= */
-
-export const getAreasFactura =
-  async (): Promise<
-    AreaFactura[]
-  > => {
-    const response =
-      await authFetch(
-        `${API_BASE}/facturas/catalogos/areas`,
-        {
-          method:
-            "GET",
-
-          cache:
-            "no-store",
-        },
-      );
-
-    const data =
-      await readResponse<
-        AreaFactura[]
-      >(
-        response,
-      );
-
-    return data.map(
-      (
-        item,
-      ) => ({
-        ...item,
-
-        id:
-          Number(
-            item.id,
-          ),
-      }),
-    );
-  };
-
-export const getProveedoresFactura =
-  async (): Promise<
-    ProveedorFactura[]
-  > => {
-    const response =
-      await authFetch(
-        `${API_BASE}/facturas/catalogos/proveedores`,
-        {
-          method:
-            "GET",
-
-          cache:
-            "no-store",
-        },
-      );
-
-    const data =
-      await readResponse<
-        ProveedorFactura[]
-      >(
-        response,
-      );
-
-    return data.map(
-      (
-        item,
-      ) => ({
-        ...item,
-
-        id:
-          Number(
-            item.id,
-          ),
-
-        idArea:
-          Number(
-            item.idArea,
-          ),
-
-        correos:
-          Array.isArray(
-            item.correos,
-          )
-            ? item.correos
-            : [],
-      }),
-    );
-  };
-
-/* =========================================================
-   ACCIONES SIMPLES
-========================================================= */
-
-const postSimpleAction =
-  async (
-    url:
-      string,
-
-    observacion?:
-      string |
-      null,
-  ): Promise<void> => {
-    const response =
-      await authFetch(
-        url,
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body:
-            JSON.stringify({
-              observacion:
-                observacion
-                  ?.trim() ||
-                null,
-            }),
-        },
-      );
-
-    await ensureSuccess(
-      response,
-    );
-  };
-
-export const aprobarFactura =
-  async (
-    id:
-      number,
-
-    observacion?:
-      string |
-      null,
-  ): Promise<void> => {
-    return postSimpleAction(
-      `${API_BASE}/facturas/${id}/aprobar`,
-      observacion,
-    );
-  };
-
-export const rechazarFactura =
-  async (
-    id:
-      number,
-
-    observacion?:
-      string |
-      null,
-  ): Promise<void> => {
-    return postSimpleAction(
-      `${API_BASE}/facturas/${id}/rechazar`,
-      observacion,
-    );
-  };
-
-export const procesarFactura =
-  async (
-    id:
-      number,
-
-    observacion?:
-      string |
-      null,
-  ): Promise<void> => {
-    return postSimpleAction(
-      `${API_BASE}/facturas/${id}/procesar`,
-      observacion,
-    );
-  };
-
-export const reactivarFactura =
-  async (
-    id:
-      number,
-
-    observacion?:
-      string |
-      null,
-  ): Promise<void> => {
-    return postSimpleAction(
-      `${API_BASE}/facturas/${id}/reactivar`,
-      observacion,
-    );
-  };
-
-
-/* =========================================================
-   REMITIR
-========================================================= */
-
-export const remitirFactura =
-  async (
-    id:
-      number,
-
-    idAreaDestino:
-      number,
-
-    observacion?:
-      string |
-      null,
-  ): Promise<void> => {
-    const response =
-      await authFetch(
-        `${API_BASE}/facturas/${id}/remitir`,
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body:
-            JSON.stringify({
-              idAreaDestino,
-
-              observacion:
-                observacion
-                  ?.trim() ||
-                null,
-            }),
-        },
-      );
-
-    await ensureSuccess(
-      response,
-    );
-  };
-
-/*
-  Alias temporal para no romper componentes antiguos.
-  La nueva UI utiliza remitirFactura().
-*/
-
-export const remitirFacturaContabilidad =
-  async (
-    id:
-      number,
-
-    observacion?:
-      string |
-      null,
-  ): Promise<void> => {
-    return postSimpleAction(
-      `${API_BASE}/facturas/${id}/remitir-contabilidad`,
-      observacion,
-    );
-  };
-
-/* =========================================================
-   PROVEEDOR DESDE RECEPCION
-========================================================= */
-
-export const asociarProveedorExistente =
-  async (
-    idFactura:
-      number,
-
-    idProveedor:
-      number,
-  ): Promise<
-    AsignarProveedorResult
-  > => {
-    const response =
-      await authFetch(
-        `${API_BASE}/facturas/${idFactura}/asignar-proveedor`,
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body:
-            JSON.stringify({
-              idProveedor,
-            }),
-        },
-      );
-
-    return readResponse<
-      AsignarProveedorResult
-    >(
-      response,
-    );
-  };
-
-export const registrarProveedorDesdeFactura =
-  async (
-    idFactura:
-      number,
-
-    nuevoProveedor:
-      NuevoProveedorFacturaInput,
-  ): Promise<
-    AsignarProveedorResult
-  > => {
-    const response =
-      await authFetch(
-        `${API_BASE}/facturas/${idFactura}/asignar-proveedor`,
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body:
-            JSON.stringify({
-              nuevoProveedor,
-            }),
-        },
-      );
-
-    return readResponse<
-      AsignarProveedorResult
-    >(
-      response,
-    );
-  };
-
-/* =========================================================
-   HISTORIAL
-========================================================= */
-
-export const getHistorialFactura =
-  async (
-    idFactura:
-      number,
-  ): Promise<
-    FacturaEvento[]
-  > => {
-    const response =
-      await authFetch(
-        `${API_BASE}/facturas/${idFactura}/historial`,
-        {
-          method:
-            "GET",
-
-          cache:
-            "no-store",
-        },
-      );
-
-    const data =
-      await readResponse<
-        FacturaEvento[]
-      >(
-        response,
-      );
-
-    return data.map(
-      (
-        item,
-      ) => ({
-        ...item,
-
-        id:
-          Number(
-            item.id,
-          ),
-
-        datos:
-          item.datos ??
-          {},
-      }),
-    );
-  };
-
-/* =========================================================
-   ADJUNTOS
-========================================================= */
-
-const getFileNameFromDisposition = (
-  header:
-    string |
-    null,
-
-  fallback:
-    string,
-): string => {
-  if (!header) {
-    return fallback;
+}
+export const asociarProveedorExistente = (idFactura: number, idProveedor: number): Promise<AsignarProveedorResult> =>
+  assignProvider(idFactura, { idProveedor: positiveId(idProveedor, "Proveedor") });
+export function registrarProveedorDesdeFactura(idFactura: number, nuevoProveedor: NuevoProveedorFacturaInput): Promise<AsignarProveedorResult> {
+  const nombre = nuevoProveedor.nombre.trim();
+  if (!nombre) throw new Error("El nombre del proveedor es obligatorio.");
+  return assignProvider(idFactura, {
+    nuevoProveedor: {
+      nombre, nit: nuevoProveedor.nit?.trim() || null,
+      idArea: positiveId(nuevoProveedor.idArea, "Área"), correos: prepareEmails(nuevoProveedor.correos)
+    }
+  });
+}
+export async function getHistorialFactura(idFactura: number, options: ReadOptions = {}): Promise<FacturaEvento[]> {
+  const data = requireData(await requestJson<FacturaEvento[]>(`/facturas/${positiveId(idFactura)}/historial`, { method: "GET", signal: options.signal }));
+  if (!Array.isArray(data)) throw new Error("Historial no válido.");
+  return data.map(item => ({ ...item, id: Number(item.id), datos: item.datos ?? {} }));
+}
+function safeFileName(value: string): string {
+  return value.replace(/[\\/\u0000-\u001f\u007f]/g, "_").trim() || "adjunto";
+}
+function dispositionName(header: string | null): string | null {
+  if (!header) return null;
+  const utf8 = header.match(/filename\*\s*=\s*UTF-8''([^;]+)/i)?.[1];
+  if (utf8) { try { return safeFileName(decodeURIComponent(utf8.trim())); } catch { /* Usar filename normal. */ } }
+  const simple = header.match(/filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;]+)/i);
+  return simple ? safeFileName((simple[1] || simple[2] || "").trim()) : null;
+}
+export async function obtenerAdjuntoFactura(idFactura: number, attachmentId: string, inline = false): Promise<{ blob: Blob; fileName: string; contentType: string }> {
+  positiveId(idFactura);
+  if (!attachmentId.trim()) throw new Error("Adjunto no válido.");
+  const response = await authFetch(apiUrl(`/facturas/${idFactura}/adjuntos/${encodeURIComponent(attachmentId)}/download${inline ? "?inline=1" : ""}`), { method: "GET", cache: "no-store" });
+  if (!response.ok) {
+    let message = "No fue posible obtener el archivo.";
+    try { const data: { message?: string } = await response.json(); message = data.message || message; } catch { /* Respuesta no JSON. */ }
+    throw new SgafApiError(message, response.status);
   }
-
-  const utf8 =
-    header.match(
-      /filename\*=UTF-8''([^;]+)/i,
-    );
-
-  if (
-    utf8?.[1]
-  ) {
-    try {
-      return decodeURIComponent(
-        utf8[1],
-      );
-    } catch {
-      return utf8[1];
-    }
-  }
-
-  const simple =
-    header.match(
-      /filename="?([^";]+)"?/i,
-    );
-
-  return simple?.[1]
-    ?.trim() ||
-    fallback;
-};
-
-export const obtenerAdjuntoFactura =
-  async (
-    idFactura:
-      number,
-
-    attachmentId:
-      string,
-
-    inline =
-      false,
-  ): Promise<{
-    blob:
-      Blob;
-
-    fileName:
-      string;
-
-    contentType:
-      string;
-  }> => {
-    const response =
-      await authFetch(
-        `${API_BASE}/facturas/${idFactura}/adjuntos/${encodeURIComponent(
-          attachmentId,
-        )}/download${inline ? "?inline=1" : ""}`,
-        {
-          method:
-            "GET",
-
-          cache:
-            "no-store",
-        },
-      );
-
-    if (
-      !response.ok
-    ) {
-      let message =
-        "No fue posible obtener el archivo.";
-
-      try {
-        const result =
-          (
-            await response
-              .json()
-          ) as
-            ApiResponse<unknown>;
-
-        message =
-          result.message ??
-          message;
-      } catch {
-        // Respuesta binaria/vacía.
-      }
-
-      throw new Error(
-        message,
-      );
-    }
-
-    const blob =
-      await response.blob();
-
-    return {
-      blob,
-
-      fileName:
-        getFileNameFromDisposition(
-          response.headers.get(
-            "Content-Disposition",
-          ),
-          "adjunto",
-        ),
-
-      contentType:
-        response.headers.get(
-          "Content-Type",
-        ) ??
-        blob.type ??
-        "application/octet-stream",
-    };
+  const blob = await response.blob();
+  return {
+    blob, fileName: dispositionName(response.headers.get("Content-Disposition")) || "",
+    contentType: response.headers.get("Content-Type") || blob.type || "application/octet-stream"
   };
-
-export const descargarAdjuntoFactura =
-  async (
-    idFactura:
-      number,
-
-    attachmentId:
-      string,
-
-    fallbackName:
-      string,
-  ): Promise<void> => {
-    const file =
-      await obtenerAdjuntoFactura(
-        idFactura,
-        attachmentId,
-        false,
-      );
-
-    const url =
-      URL.createObjectURL(
-        file.blob,
-      );
-
-    try {
-      const anchor =
-        document.createElement(
-          "a",
-        );
-
-      anchor.href =
-        url;
-
-      anchor.download =
-        file.fileName ||
-        fallbackName;
-
-      document.body
-        .appendChild(
-          anchor,
-        );
-
-      anchor.click();
-
-      anchor.remove();
-    } finally {
-      setTimeout(
-        () => {
-          URL.revokeObjectURL(
-            url,
-          );
-        },
-        1_000,
-      );
-    }
-  };
-
-export const abrirAdjuntoFactura =
-  async (
-    idFactura:
-      number,
-
-    attachmentId:
-      string,
-  ): Promise<void> => {
-    const preview =
-      window.open(
-        "",
-        "_blank",
-        "noopener,noreferrer",
-      );
-
-    try {
-      const file =
-        await obtenerAdjuntoFactura(
-          idFactura,
-          attachmentId,
-          true,
-        );
-
-      const url =
-        URL.createObjectURL(
-          file.blob,
-        );
-
-      if (
-        preview
-      ) {
-        preview.location.href =
-          url;
-      } else {
-        window.open(
-          url,
-          "_blank",
-          "noopener,noreferrer",
-        );
-      }
-
-      setTimeout(
-        () => {
-          URL.revokeObjectURL(
-            url,
-          );
-        },
-        60_000,
-      );
-    } catch (
-      error
-    ) {
-      preview?.close();
-
-      throw error;
-    }
-  };
+}
+export async function descargarAdjuntoFactura(idFactura: number, attachmentId: string, fallbackName: string): Promise<void> {
+  const file = await obtenerAdjuntoFactura(idFactura, attachmentId);
+  const url = URL.createObjectURL(file.blob);
+  const anchor = document.createElement("a");
+  try {
+    anchor.href = url;
+    anchor.download = safeFileName(file.fileName || fallbackName || "adjunto");
+    document.body.appendChild(anchor); anchor.click();
+  } finally { anchor.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
+}
+export async function abrirAdjuntoFactura(idFactura: number, attachmentId: string): Promise<void> {
+  positiveId(idFactura);
+  // Abrir SIN esperar a fetch conserva el gesto del usuario. Se corta opener inmediatamente.
+  const preview = window.open("about:blank", "_blank");
+  if (!preview) throw new Error("El navegador bloqueó la ventana. Permite ventanas emergentes o usa Descargar.");
+  preview.opener = null;
+  try {
+    const file = await obtenerAdjuntoFactura(idFactura, attachmentId, true);
+    // La vista previa de la UI es solo para PDF; no ejecutar HTML de un adjunto en el origen SGAF.
+    const signature = await file.blob.slice(0, 5).text();
+    if (signature !== "%PDF-") throw new Error("Este adjunto no es un PDF válido. Utiliza Descargar.");
+    const pdf = new Blob([file.blob], { type: "application/pdf" });
+    const url = URL.createObjectURL(pdf);
+    if (preview.closed) { URL.revokeObjectURL(url); return; }
+    preview.location.replace(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (error) { preview.close(); throw error; }
+}

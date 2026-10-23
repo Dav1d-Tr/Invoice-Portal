@@ -1,223 +1,32 @@
-import {
-  Router,
-} from "express";
-
-import {
-  aprobarController,
-  areasFacturasController,
-  asignarProveedorController,
-  descargarAdjuntoFacturaController,
-  detalleFacturaController,
-  detalleOutlookFacturaController,
-  historialController,
-  listarFacturasController,
-  procesarController,
-  proveedoresFacturasController,
-  reactivarController,
-  rechazadasController,
-  rechazarController,
-  remitirContabilidadController,
-  remitirController,
-  remitidasController,
-} from "../controllers/facturasController";
-
-import {
-  requireAuth,
-} from "../middlewares/authMiddleware";
-
-import {
-  requireArea,
-} from "../middlewares/areaAccessMiddleware";
-
-const router =
-  Router();
-
-/* =========================================================
-   TODAS REQUIEREN JWT
-========================================================= */
-
-router.use(
-  requireAuth,
-);
-
-/* =========================================================
-   RUTAS FIJAS
-   Siempre antes de /:id
-========================================================= */
-
-/* =========================================================
-   REMITIDAS
-
-   Disponible para TODAS las areas.
-   Solo contiene trabajo activo remitido realmente al area.
-========================================================= */
-
-router.get(
-  "/panel/remitidas",
-  remitidasController,
-);
-
-/* =========================================================
-   RECHAZADAS
-
-   - Cada area ve sus rechazos actuales.
-   - SISTEMAS ve todas las rechazadas.
-========================================================= */
-
-router.get(
-  "/panel/rechazadas",
-  rechazadasController,
-);
-
-/* =========================================================
-   CATALOGO AREAS
-========================================================= */
-
-router.get(
-  "/catalogos/areas",
-  areasFacturasController,
-);
-
-/* =========================================================
-   CATALOGO PROVEEDORES
-========================================================= */
-
-router.get(
-  "/catalogos/proveedores",
-  proveedoresFacturasController,
-);
-
-/* =========================================================
-   FACTURAS DEL AREA
-========================================================= */
-
-router.get(
-  "/",
-  listarFacturasController,
-);
-
-/* =========================================================
-   CORREO COMPLETO DESDE OUTLOOK
-========================================================= */
-
-router.get(
-  "/:id/correo-outlook",
-  detalleOutlookFacturaController,
-);
-
-/* =========================================================
-   DESCARGAR / VER ADJUNTO
-========================================================= */
-
-router.get(
-  "/:id/adjuntos/:attachmentId/download",
-  descargarAdjuntoFacturaController,
-);
-
-/* =========================================================
-   HISTORIAL
-========================================================= */
-
-router.get(
-  "/:id/historial",
-  historialController,
-);
-
-/* =========================================================
-   ASIGNAR / REGISTRAR PROVEEDOR
-
-   RECEPCION clasifica hacia el area responsable.
-   Esa clasificacion NO crea una remision.
-========================================================= */
-
-router.post(
-  "/:id/asignar-proveedor",
-  asignarProveedorController,
-);
-
-/* =========================================================
-   APROBAR
-========================================================= */
-
-router.post(
-  "/:id/aprobar",
-  aprobarController,
-);
-
-/* =========================================================
-   RECHAZAR
-========================================================= */
-
-router.post(
-  "/:id/rechazar",
-  rechazarController,
-);
-
-/* =========================================================
-   REACTIVAR
-
-   Solo SISTEMAS.
-   RECHAZADA -> PENDIENTE.
-========================================================= */
-
-router.post(
-  "/:id/reactivar",
-  requireArea(
-    "SISTEMAS",
-  ),
-  reactivarController,
-);
-
-/* =========================================================
-   REMITIR A OTRA AREA
-
-   NO se usa para Contabilidad.
-========================================================= */
-
-router.post(
-  "/:id/remitir",
-  remitirController,
-);
-
-/* =========================================================
-   REMITIR A CONTABILIDAD
-
-   Usado por otras areas cuando la factura ya esta APROBADA.
-========================================================= */
-
-router.post(
-  "/:id/remitir-contabilidad",
-  remitirContabilidadController,
-);
-
-/* =========================================================
-   PROCESAR
-
-   Solo CONTABILIDAD.
-   La funcion PostgreSQL valida que la factura:
-   - este actualmente en CONTABILIDAD;
-   - tenga estado APROBADA.
-
-   NO exige una remision previa.
-========================================================= */
-
-router.post(
-  "/:id/procesar",
-  requireArea(
-    "CONTABILIDAD",
-  ),
-  procesarController,
-);
-
-/* =========================================================
-   DETALLE
-
-   Siempre al final.
-========================================================= */
-
-router.get(
-  "/:id",
-  detalleFacturaController,
-);
-
+import { Router } from 'express';
+import { aprobarController, areasFacturasController, asignarProveedorController, descargarAdjuntoFacturaController, detalleFacturaController, detalleOutlookFacturaController, historialController, listarFacturasController, procesarController, proveedoresFacturasController, reactivarController, rechazadasController, rechazarController, remitirContabilidadController, remitirController, remitidasController, } from '../controllers/facturasController';
+import { requireAuth } from '../middlewares/authMiddleware';
+import { requireArea } from '../middlewares/areaAccessMiddleware';
+import { buscarRevisionController, detalleRevisionController, corregirRevisionController } from '../controllers/revisionFacturasController';
+const router = Router();
+router.use(requireAuth);
+// Administracion: rutas fijas y permiso real en backend, no solo menu oculto.
+router.get('/sistemas/revision', requireArea('SISTEMAS'), buscarRevisionController);
+router.get('/sistemas/revision/:id', requireArea('SISTEMAS'), detalleRevisionController);
+router.patch('/sistemas/revision/:id/asignacion', requireArea('SISTEMAS'), corregirRevisionController);
+// Rutas fijas antes del parametro /:id.
+router.get('/panel/remitidas', remitidasController);
+router.get('/panel/rechazadas', rechazadasController);
+router.get('/catalogos/areas', areasFacturasController);
+router.get('/catalogos/proveedores', proveedoresFacturasController);
+router.get('/', listarFacturasController);
+router.get('/:id/correo-outlook', detalleOutlookFacturaController);
+router.get('/:id/adjuntos/:attachmentId/download', descargarAdjuntoFacturaController);
+router.get('/:id/historial', historialController);
+// El servicio valida RECEPCION consultando el area del JWT en PostgreSQL.
+router.post('/:id/asignar-proveedor', asignarProveedorController);
+router.post('/:id/aprobar', aprobarController);
+// Todas las areas, incluida RECEPCION: mismo rechazo, mismas validaciones.
+router.post('/:id/rechazar', rechazarController);
+router.post('/:id/reactivar', requireArea('SISTEMAS'), reactivarController);
+router.post('/:id/remitir', remitirController);
+router.post('/:id/remitir-contabilidad', remitirContabilidadController);
+router.post('/:id/procesar', requireArea('CONTABILIDAD'), procesarController);
+// No se expone DELETE /:id: rechazar nunca elimina ni desactiva una factura.
+router.get('/:id', detalleFacturaController);
 export default router;

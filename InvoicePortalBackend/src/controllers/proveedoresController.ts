@@ -1,427 +1,91 @@
-import type {
-  Request,
-  Response,
-} from "express";
-
-import {
-  actualizarProveedor,
-  agregarCorreoProveedor,
-  crearProveedor,
-  eliminarProveedor,
-  getProveedores,
-  ProveedorError,
-} from "../services/proveedoresService";
-
-import {
-  sincronizarProveedorOutlook,
-} from "../services/outlookService";
-
-const handleError = (
-  error: unknown,
-  res: Response,
-): void => {
-  if (
-    error instanceof
-    ProveedorError
-  ) {
-    res.status(
-      error.statusCode,
-    ).json({
-      success: false,
-
-      message:
-        error.message,
-    });
-
-    return;
-  }
-
-  console.error(
-    "Error proveedores:",
-    error,
-  );
-
-  res.status(500).json({
-    success: false,
-
-    message:
-      "Ha ocurrido un error interno.",
-  });
+import type { Request, Response } from 'express';
+import { actualizarProveedor, agregarCorreoProveedor, crearProveedor, eliminarProveedor, getProveedores } from '../services/proveedoresService';
+import { sincronizarProveedorOutlook } from '../services/outlookService';
+import { getAuth, positiveId, requestIp, requestAgent, handleBackendError, parseProveedorInput } from '../utils/httpHelpers';
+const syncGuardado = async (idProveedor: number, req: Request) => {
+    const auth = getAuth(req);
+    if (!auth)
+        throw new Error('Sesion no valida.');
+    try {
+        const sincronizacion = await sincronizarProveedorOutlook(idProveedor, {
+            idAreaActor: auth.areaId, consultarOutlook: req.body?.consultarOutlook !== false,
+            ip: requestIp(req), userAgent: requestAgent(req),
+        });
+        return { sincronizacion, warning: sincronizacion.warning };
+    }
+    catch (error) {
+        console.error('Proveedor guardado; no se completo la reclasificacion:', error);
+        return { sincronizacion: null,
+            warning: 'El proveedor fue guardado, pero la reclasificacion no se completo. Revisa el log y usa Sincronizar.' };
+    }
 };
-
-/* =========================================================
-   LISTAR
-========================================================= */
-
-export const listarProveedoresController =
-  async (
-    _req: Request,
-    res: Response,
-  ): Promise<void> => {
+export const listarProveedoresController = async (_req: Request, res: Response): Promise<void> => {
     try {
-      res.json({
-        success: true,
-
-        data:
-          await getProveedores(),
-      });
-    } catch (error) {
-      handleError(
-        error,
-        res,
-      );
+        res.json({ success: true, data: await getProveedores() });
     }
-  };
-
-/* =========================================================
-   CREAR + SINCRONIZAR OUTLOOK
-========================================================= */
-
-export const crearProveedorController =
-  async (
-    req: Request,
-    res: Response,
-  ): Promise<void> => {
-    try {
-      const {
-        nombre,
-        nit,
-        idArea,
-        correos,
-      } =
-        req.body ?? {};
-
-      if (
-        typeof nombre !==
-          "string" ||
-        !nombre.trim()
-      ) {
-        res.status(400).json({
-          success: false,
-
-          message:
-            "El nombre es obligatorio.",
-        });
-
+    catch (error) {
+        handleBackendError(error, res, 'No fue posible consultar los proveedores.');
+    }
+};
+export const crearProveedorController = async (req: Request, res: Response): Promise<void> => {
+    if (!getAuth(req)) {
+        res.status(401).json({ success: false, message: 'Sesion no valida.' });
         return;
-      }
-
-      const proveedor =
-        await crearProveedor({
-          nombre,
-
-          nit:
-            typeof nit ===
-            "string"
-              ? nit
-              : null,
-
-          idArea:
-            Number(
-              idArea,
-            ),
-
-          /*
-            CORREOS OPCIONALES
-          */
-          correos:
-            Array.isArray(
-              correos,
-            )
-              ? correos.filter(
-                  (
-                    value,
-                  ): value is string =>
-                    typeof value ===
-                    "string",
-                )
-              : [],
-        });
-
-      try {
-        const sincronizacion =
-          await sincronizarProveedorOutlook(
-            proveedor.id,
-          );
-
-        res.status(201).json({
-          success: true,
-
-          message:
-            "Proveedor registrado y sincronizado.",
-
-          data: {
-            ...proveedor,
-
-            sincronizacion,
-          },
-        });
-      } catch (
-        syncError
-      ) {
-        res.status(201).json({
-          success: true,
-
-          message:
-            "Proveedor registrado.",
-
-          warning:
-            syncError instanceof
-            Error
-              ? syncError.message
-              : "No fue posible sincronizar Outlook.",
-
-          data: {
-            ...proveedor,
-
-            sincronizacion:
-              null,
-          },
-        });
-      }
-    } catch (error) {
-      handleError(
-        error,
-        res,
-      );
     }
-  };
-
-/* =========================================================
-   ACTUALIZAR + RESINCRONIZAR
-========================================================= */
-
-export const actualizarProveedorController =
-  async (
-    req: Request,
-    res: Response,
-  ): Promise<void> => {
     try {
-      const id =
-        Number(
-          req.params.id,
-        );
-
-      const {
-        nombre,
-        nit,
-        idArea,
-        correos,
-      } =
-        req.body ?? {};
-
-      if (
-        !Number.isInteger(id) ||
-        id <= 0 ||
-        typeof nombre !==
-          "string"
-      ) {
-        res.status(400).json({
-          success: false,
-
-          message:
-            "Datos inválidos.",
-        });
-
-        return;
-      }
-
-      const proveedor =
-        await actualizarProveedor(
-          id,
-          {
-            nombre,
-
-            nit:
-              typeof nit ===
-              "string"
-                ? nit
-                : null,
-
-            idArea:
-              Number(
-                idArea,
-              ),
-
-            correos:
-              Array.isArray(
-                correos,
-              )
-                ? correos.filter(
-                    (
-                      value,
-                    ): value is string =>
-                      typeof value ===
-                      "string",
-                  )
-                : [],
-          },
-        );
-
-      try {
-        const sincronizacion =
-          await sincronizarProveedorOutlook(
-            id,
-          );
-
-        res.json({
-          success: true,
-
-          message:
-            "Proveedor actualizado.",
-
-          data: {
-            ...proveedor,
-
-            sincronizacion,
-          },
-        });
-      } catch (
-        syncError
-      ) {
-        res.json({
-          success: true,
-
-          message:
-            "Proveedor actualizado.",
-
-          warning:
-            syncError instanceof
-            Error
-              ? syncError.message
-              : "No fue posible sincronizar Outlook.",
-
-          data: {
-            ...proveedor,
-
-            sincronizacion:
-              null,
-          },
-        });
-      }
-    } catch (error) {
-      handleError(
-        error,
-        res,
-      );
+        const proveedor = await crearProveedor(parseProveedorInput(req.body));
+        const sync = await syncGuardado(proveedor.id, req);
+        res.status(201).json({ success: true,
+            message: sync.warning ? 'Proveedor registrado con advertencias.' : 'Proveedor registrado y pendientes reclasificados.',
+            warning: sync.warning, data: { ...proveedor, sincronizacion: sync.sincronizacion } });
     }
-  };
-
-/* =========================================================
-   ELIMINAR / DESACTIVAR
-========================================================= */
-
-export const eliminarProveedorController =
-  async (
-    req: Request,
-    res: Response,
-  ): Promise<void> => {
+    catch (error) {
+        handleBackendError(error, res, 'No fue posible registrar el proveedor.');
+    }
+};
+export const actualizarProveedorController = async (req: Request, res: Response): Promise<void> => {
+    const id = positiveId(req.params.id);
+    if (!getAuth(req) || !id) {
+        res.status(!getAuth(req) ? 401 : 400).json({ success: false, message: 'Sesion o proveedor no valido.' });
+        return;
+    }
     try {
-      const id =
-        Number(
-          req.params.id,
-        );
-
-      if (
-        !Number.isInteger(id) ||
-        id <= 0
-      ) {
-        res.status(400).json({
-          success: false,
-
-          message:
-            "Proveedor inválido.",
-        });
-
-        return;
-      }
-
-      await eliminarProveedor(
-        id,
-      );
-
-      res.json({
-        success: true,
-
-        message:
-          "Proveedor eliminado correctamente.",
-      });
-    } catch (error) {
-      handleError(
-        error,
-        res,
-      );
+        const proveedor = await actualizarProveedor(id, parseProveedorInput(req.body));
+        const sync = await syncGuardado(id, req);
+        res.json({ success: true, message: 'Proveedor actualizado.', warning: sync.warning,
+            data: { ...proveedor, sincronizacion: sync.sincronizacion } });
     }
-  };
-
-/* =========================================================
-   AGREGAR CORREO
-========================================================= */
-
-export const agregarCorreoController =
-  async (
-    req: Request,
-    res: Response,
-  ): Promise<void> => {
+    catch (error) {
+        handleBackendError(error, res, 'No fue posible actualizar el proveedor.');
+    }
+};
+export const eliminarProveedorController = async (req: Request, res: Response): Promise<void> => {
+    const id = positiveId(req.params.id);
+    if (!id) {
+        res.status(400).json({ success: false, message: 'Proveedor no valido.' });
+        return;
+    }
     try {
-      const id =
-        Number(
-          req.params.id,
-        );
-
-      const correo =
-        req.body?.correo;
-
-      if (
-        !Number.isInteger(id) ||
-        typeof correo !==
-          "string"
-      ) {
-        res.status(400).json({
-          success: false,
-
-          message:
-            "Datos inválidos.",
-        });
-
-        return;
-      }
-
-      const data =
-        await agregarCorreoProveedor(
-          id,
-          correo,
-        );
-
-      let sincronizacion =
-        null;
-
-      try {
-        sincronizacion =
-          await sincronizarProveedorOutlook(
-            id,
-          );
-      } catch (
-        syncError
-      ) {
-        console.error(
-          syncError,
-        );
-      }
-
-      res.status(201).json({
-        success: true,
-
-        data: {
-          ...data,
-
-          sincronizacion,
-        },
-      });
-    } catch (error) {
-      handleError(
-        error,
-        res,
-      );
+        await eliminarProveedor(id);
+        res.json({ success: true, message: 'Proveedor desactivado correctamente.' });
     }
-  };
+    catch (error) {
+        handleBackendError(error, res, 'No fue posible desactivar el proveedor.');
+    }
+};
+export const agregarCorreoController = async (req: Request, res: Response): Promise<void> => {
+    const id = positiveId(req.params.id);
+    if (!getAuth(req) || !id || typeof req.body?.correo !== 'string') {
+        res.status(!getAuth(req) ? 401 : 400).json({ success: false, message: 'Sesion, proveedor o correo no valido.' });
+        return;
+    }
+    try {
+        const correo = await agregarCorreoProveedor(id, req.body.correo);
+        const sync = await syncGuardado(id, req);
+        res.status(201).json({ success: true, message: 'Correo registrado.', warning: sync.warning,
+            data: { ...correo, sincronizacion: sync.sincronizacion } });
+    }
+    catch (error) {
+        handleBackendError(error, res, 'No fue posible registrar el correo.');
+    }
+};

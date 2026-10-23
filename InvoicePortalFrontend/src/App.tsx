@@ -5,8 +5,9 @@ import {
   Routes,
 } from "react-router-dom";
 
+import RevisionAsignaciones from "./Pages/RevisionAsignaciones";
 import Login from "./Pages/Login";
-import Home from "./Pages/Home";
+import FacturasLayout from "./Layout/FacturasLayout";
 import Remitidos from "./Pages/Remitidos";
 import Rechazadas from "./Pages/Rechazadas";
 import Historial from "./Pages/Historial";
@@ -83,15 +84,11 @@ function App() {
           >
             {/* FACTURAS */}
 
-            <Route
-              path="/facturas"
-              element={<Home />}
-            />
-
-            <Route
-              path="/facturas/:id"
-              element={<FacturaDetalle />}
-            />
+            {/* El padre conserva Home montado, oculto al abrir el detalle. */}
+            <Route path="/facturas" element={<FacturasLayout />}>
+              <Route index element={null} />
+              <Route path=":id" element={<FacturaDetalle />} />
+            </Route>
 
             {/* REMITIDOS - TODAS LAS AREAS */}
 
@@ -153,6 +150,8 @@ function App() {
                 />
               }
             >
+              <Route path="/sistemas/revision-facturas" element={<RevisionAsignaciones />} />
+
               <Route
                 path="/configuracion"
                 element={<Configuracion />}
